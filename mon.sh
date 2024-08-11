@@ -1,16 +1,17 @@
 #!/bin/bash
 
 # Define log files
-declare -A logs
-logs[dns]="/usr/local/zeek/logs/current/dns.log"
-logs[notice]="/usr/local/zeek/logs/current/notice.log"
-logs[capture_loss]="/usr/local/zeek/logs/current/capture_loss.log"
-logs[conn]="/usr/local/zeek/logs/current/conn.log"
-logs[loaded_scripts]="/usr/local/zeek/logs/current/loaded_scripts.log"
-logs[packet_filter]="/usr/local/zeek/logs/current/packet_filter.log"
-logs[stats]="/usr/local/zeek/logs/current/stats.log"
-logs[telemetry]="/usr/local/zeek/logs/current/telemetry.log"
-logs[weird]="/usr/local/zeek/logs/current/weird.log"
+declare -A logs=(
+    [dns]="/usr/local/zeek/logs/current/dns.log"
+    [notice]="/usr/local/zeek/logs/current/notice.log"
+    [capture_loss]="/usr/local/zeek/logs/current/capture_loss.log"
+    [conn]="/usr/local/zeek/logs/current/conn.log"
+    [loaded_scripts]="/usr/local/zeek/logs/current/loaded_scripts.log"
+    [packet_filter]="/usr/local/zeek/logs/current/packet_filter.log"
+    [stats]="/usr/local/zeek/logs/current/stats.log"
+    [telemetry]="/usr/local/zeek/logs/current/telemetry.log"
+    [weird]="/usr/local/zeek/logs/current/weird.log"
+)
 
 # Temporary file for storing updates
 temp_updates="/tmp/zeek_log_updates.txt"
@@ -33,14 +34,10 @@ update_counters() {
         for log in "${!logs[@]}"; do
             if [ -f "${logs[$log]}" ]; then
                 current_size=$(stat -c %s "${logs[$log]}")
-                if [ $current_size -gt ${last_sizes[$log]} ]; then
-                    last_sizes[$log]=$current_size
-                    echo "${log// /_} 1" >> "$temp_file"  # Replace spaces with underscores
-                else
-                    echo "${log// /_} 0" >> "$temp_file"
-                fi
+                echo "$log $(($current_size > ${last_sizes[$log]} ? 1 : 0))" >> "$temp_file"
+                last_sizes[$log]=$current_size
             else
-                echo "${log// /_} 0" >> "$temp_file"
+                echo "$log 0" >> "$temp_file"
             fi
         done
         mv "$temp_file" "$temp_updates"  # Atomically update the main temp file
@@ -69,15 +66,12 @@ while true; do
     declare -A updates  # Local array to read updates into
 
     # Read updates from the temp file
-    while IFS=' ' read -r line; do
-        log=$(echo "$line" | cut -d' ' -f1)
-        updated=$(echo "$line" | cut -d' ' -f2)
-        log="${log//_/ }"  # Replace underscores back with spaces
+    while IFS=' ' read -r log updated; do
         updates["$log"]=$updated
         echo "Debug: log='$log', updated='${updates[$log]}'"  # Debug output
     done < "$temp_updates"
 
-    for log in "${!logs[@]}": do
+    for log in "${!logs[@]}"; do
         options+=("$log")
         if [ "${updates[$log]}" -eq 1 ]; then
             echo "[$i] $log *"
@@ -96,7 +90,7 @@ while true; do
         control_c
     elif [ "$choice" -ge 0 ] && [ "$choice" -lt "${#logs[@]}" ]; then
         selected_log=${options[$choice]}
-        echo "${selected_log// /_} 0" > "$temp_updates"  # Reset update flag with sanitized key
+        echo "$selected_log 0" > "$temp_updates"  # Reset update flag
         less +F "${logs[$selected_log]}"
     else
         echo "Invalid option. Try another one."
