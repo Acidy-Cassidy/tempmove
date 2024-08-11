@@ -14,7 +14,7 @@ logs[weird]="/usr/local/zeek/logs/current/weird.log"
 
 # Temporary file for storing updates
 temp_updates="/tmp/zeek_log_updates.txt"
-echo "" > "$temp_updates"  # Clear or create the temp file
+echo "" > "$temp_updates"  # Ensure the file is empty and exists
 
 # Initialize last sizes
 declare -A last_sizes
@@ -27,23 +27,23 @@ done
 
 # Function to check for file size changes and update temp file
 update_counters() {
-    local update_info=""
+    local temp_file="/tmp/zeek_temp_updates.txt"
     while true; do
-        update_info=""  # Reset info for this loop
+        echo "" > "$temp_file"  # Clear the temp file
         for log in "${!logs[@]}"; do
             if [ -f "${logs[$log]}" ]; then
                 current_size=$(stat -c %s "${logs[$log]}")
                 if [ $current_size -gt ${last_sizes[$log]} ]; then
                     last_sizes[$log]=$current_size
-                    update_info+="$log 1\n"
+                    echo "$log 1" >> "$temp_file"
                 else
-                    update_info+="$log 0\n"
+                    echo "$log 0" >> "$temp_file"
                 fi
             else
-                update_info+="$log 0\n"  # No file found, no update
+                echo "$log 0" >> "$temp_file"
             fi
         done
-        echo -e "$update_info" > "$temp_updates"  # Write all updates at once
+        mv "$temp_file" "$temp_updates"  # Atomically update the main temp file
         sleep 1  # Check every second
     done
 }
