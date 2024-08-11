@@ -35,12 +35,12 @@ update_counters() {
                 current_size=$(stat -c %s "${logs[$log]}")
                 if [ $current_size -gt ${last_sizes[$log]} ]; then
                     last_sizes[$log]=$current_size
-                    echo "$log 1" >> "$temp_file"
+                    echo "${log// /_} 1" >> "$temp_file"  # Replace spaces with underscores
                 else
-                    echo "$log 0" >> "$temp_file"
+                    echo "${log// /_} 0" >> "$temp_file"
                 fi
             else
-                echo "$log 0" >> "$temp_file"
+                echo "${log// /_} 0" >> "$temp_file"
             fi
         done
         mv "$temp_file" "$temp_updates"  # Atomically update the main temp file
@@ -70,13 +70,14 @@ while true; do
 
     # Read updates from the temp file
     while IFS=' ' read -r line; do
-        log=$(echo "$line" | cut -d' ' -f1 | tr -d '\r\n[:space:]')  # Strip spaces and newlines
-        updated=$(echo "$line" | cut -d' ' -f2 | tr -d '\r\n[:space:]')
+        log=$(echo "$line" | cut -d' ' -f1)
+        updated=$(echo "$line" | cut -d' ' -f2)
+        log="${log//_/ }"  # Replace underscores back with spaces
         updates["$log"]=$updated
         echo "Debug: log='$log', updated='${updates[$log]}'"  # Debug output
     done < "$temp_updates"
 
-    for log in "${!logs[@]}"; do
+    for log in "${!logs[@]}": do
         options+=("$log")
         if [ "${updates[$log]}" -eq 1 ]; then
             echo "[$i] $log *"
@@ -95,7 +96,7 @@ while true; do
         control_c
     elif [ "$choice" -ge 0 ] && [ "$choice" -lt "${#logs[@]}" ]; then
         selected_log=${options[$choice]}
-        echo "$selected_log 0" > "$temp_updates"  # Reset update flag
+        echo "${selected_log// /_} 0" > "$temp_updates"  # Reset update flag with sanitized key
         less +F "${logs[$selected_log]}"
     else
         echo "Invalid option. Try another one."
