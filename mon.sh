@@ -15,7 +15,7 @@ logs[weird]="/usr/local/zeek/logs/current/weird.log"
 # Temporary file for storing updates
 temp_updates="/tmp/zeek_log_updates.txt"
 
-# Initialize last sizes
+# Initialize last sizes and update flags
 declare -A last_sizes
 > "$temp_updates"  # Clear or create the temp file
 for log in "${!logs[@]}"; do
@@ -34,7 +34,7 @@ update_counters() {
                 if [ $current_size -gt ${last_sizes[$log]} ]; then
                     last_sizes[$log]=$current_size
                     # Update the temporary file to reflect the change
-                    echo "$log 1" >> "$temp_updates"
+                    echo "$log 1" > "$temp_updates"
                 fi
             fi
         done
@@ -88,7 +88,7 @@ while true; do
     elif [ "$choice" -ge 0 ] && [ "$choice" -lt "${#logs[@]}" ]; then
         selected_log=${options[$choice]}
         # Reset update flag in the temp file
-        echo "$selected_log 0" >> "$temp_updates"
+        echo "$selected_log 0" > "$temp_updates"
         less +F "${logs[$selected_log]}"
     else
         echo "Invalid option. Try another one."
