@@ -70,10 +70,10 @@ while true; do
 
     # Read updates from the temp file
     while IFS=' ' read -r line; do
-        log=$(echo "$line" | cut -d' ' -f1)
-        updated=$(echo "$line" | cut -d' ' -f2)
-        log=$(echo "$log" | tr -d '[:space:]')  # Trim whitespace just in case
-        updates[$log]=$updated
+        log=$(echo "$line" | cut -d' ' -f1 | tr -d '\r\n[:space:]')  # Strip spaces and newlines
+        updated=$(echo "$line" | cut -d' ' -f2 | tr -d '\r\n[:space:]')
+        updates["$log"]=$updated
+        echo "Debug: log='$log', updated='${updates[$log]}'"  # Debug output
     done < "$temp_updates"
 
     for log in "${!logs[@]}"; do
