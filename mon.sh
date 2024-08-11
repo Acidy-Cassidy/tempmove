@@ -69,7 +69,10 @@ while true; do
     declare -A updates  # Local array to read updates into
 
     # Read updates from the temp file
-    while IFS=' ' read -r log updated; do
+    while IFS=' ' read -r line; do
+        log=$(echo "$line" | cut -d' ' -f1)
+        updated=$(echo "$line" | cut -d' ' -f2)
+        log=$(echo "$log" | tr -d '[:space:]')  # Trim whitespace just in case
         updates[$log]=$updated
     done < "$temp_updates"
 
