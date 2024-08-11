@@ -67,13 +67,14 @@ while true; do
 
     # Read updates from the temp file
     while IFS=' ' read -r log updated; do
+        log=$(echo "$log" | tr -d '\n\r')  # Remove potential newline characters
         updates["$log"]=$updated
         echo "Debug: log='$log', updated='${updates[$log]}'"  # Debug output
     done < "$temp_updates"
 
     for log in "${!logs[@]}"; do
         options+=("$log")
-        if [ "${updates[$log]}" -eq 1 ]; then
+        if [ "${updates["$log"]}" -eq 1 ]; then
             echo "[$i] $log *"
         else
             echo "[$i] $log"
