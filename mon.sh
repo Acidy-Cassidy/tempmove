@@ -12,28 +12,27 @@ logs[stats]="/usr/local/zeek/logs/current/stats.log"
 logs[telemetry]="/usr/local/zeek/logs/current/telemetry.log"
 logs[weird]="/usr/local/zeek/logs/current/weird.log"
 
-# Initialize last sizes and update flags
+# Temporary file for storing updates
+temp_updates="/tmp/zeek_log_updates.txt"
+
+# Initialize last sizes
 declare -A last_sizes
-declare -A updates
 for log in "${!logs[@]}"; do
     if [ -f "${logs[$log]}" ]; then
         last_sizes[$log]=$(stat -c %s "${logs[$log]}")
-        updates[$log]=0
-    else
-        last_sizes[$log]=0
-        updates[$log]=0
     fi
+    echo "$log 0" >> "$temp_updates"  # Initialize update flags in temp file
 done
 
-# Function to check for file size changes and update flags
+# Function to check for file size changes and update flags in temp file
 update_counters() {
     while true; do
         for log in "${!logs[@]}"; do
             if [ -f "${logs[$log]}" ]; then
                 current_size=$(stat -c %s "${logs[$log]}")
                 if [ $current_size -gt ${last_sizes[$log]} ]; then
-                    updates[$log]=1
                     last_sizes[$log]=$current_size
+                    echo "$log 1" >> "$temp_updates"  # Set update flag in temp file
                 fi
             fi
         done
@@ -48,6 +47,7 @@ update_counters &
 control_c() {
     echo -e "\nExiting and cleaning up..."
     kill $(jobs -p)  # Kill all background jobs
+    rm -f "$temp_updates"  # Remove temporary file
     exit
 }
 
@@ -57,9 +57,18 @@ while true; do
     echo "Select a log file to view or exit:"
     i=1
     options=()  # To store log names for indexing
+
+    # Read updates from temp file
+    declare -A updates
+    while read -r line; do
+        log=$(echo "$line" | cut -d' ' -f1)
+        updated=$(echo "$line" | cut -d' ' -f2)
+        updates[$log]=$updated
+    done < "$temp_updates"
+
     for log in "${!logs[@]}"; do
         options+=("$log")
-        if [ ${updates[$log]} -eq 1 ]; then
+        if [ "${updates[$log]}" -eq 1 ]; then
             echo "[$i] $log *"
         else
             echo "[$i] $log"
@@ -76,7 +85,7 @@ while true; do
         control_c
     elif [ "$choice" -ge 0 ] && [ "$choice" -lt "${#logs[@]}" ]; then
         selected_log=${options[$choice]}
-        updates[$selected_log]=0  # Reset update flag
+        echo "$selected_log 0" >> "$temp_updates"  # Reset update flag
         less +F "${logs[$selected_log]}"
     else
         echo "Invalid option. Try another one."
