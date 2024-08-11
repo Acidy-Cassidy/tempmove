@@ -11,30 +11,36 @@ logs[packet_filter]="/usr/local/zeek/logs/current/packet_filter.log"
 logs[stats]="/usr/local/zeek/logs/current/stats.log"
 logs[telemetry]="/usr/local/zeek/logs/current/telemetry.log"
 logs[weird]="/usr/local/zeek/logs/current/weird.log"
-declare -A counters
-counters[dns]=0
-counters[notice]=0
-counters[capture_loss]=0
-counters[conn]=0
-counters[loaded_scripts]=0
-counters[packet_filter]=0
-counters[stats]=0
-counters[telemetry]=0
-counters[weird]=0
+declare -A last_sizes
+declare -A updates
 
-# Function to monitor a log file and update counters
-monitor_log() {
-    local log_name=$1
-    local log_file=${logs[$log_name]}
-    tail -n0 -F "$log_file" | while read line; do
-        counters[$log_name]=$(( ${counters[$log_name]} + 1 ))
+# Initialize sizes and updates flags
+for log in "${!logs[@]}"; do
+    last_sizes[$log]=0
+    updates[$log]=0
+    if [ -f "${logs[$log]}" ]; then
+        last_sizes[$log]=$(stat -c %s "${logs[$log]}")
+    fi
+done
+
+# Function to check for file size changes and update flags
+update_counters() {
+    while true; do
+        for log in "${!logs[@]}"; do
+            if [ -f "${logs[$log]}" ]; then
+                current_size=$(stat -c %s "${logs[$log]}")
+                if [ $current_size -gt ${last_sizes[$log]} ]; then
+                    updates[$log]=1  # Set flag that there's an update
+                    last_sizes[$log]=$current_size
+                fi
+            fi
+        done
+        sleep 1  # check every second
     done
 }
 
-# Start monitoring each log in the background
-for log in "${!logs[@]}"; do
-    monitor_log "$log" &
-done
+# Start updating counters in the background
+update_counters &
 
 # User interaction to view logs
 control_c() {
@@ -47,17 +53,26 @@ trap control_c INT
 
 while true; do
     echo "Select a log file to view or exit:"
+    i=1
     for log in "${!logs[@]}"; do
-        echo "$log (${counters[$log]} new entries)"
+        if [ ${updates[$log]} -eq 1 ]; then
+            echo "[$i] $log *"
+        else
+            echo "[$i] $log"
+        fi
+        ((i++))
     done
-    echo "exit"
-    
-    read choice
+    echo "[$i] exit"
 
-    if [[ $choice == "exit" ]]; then
+    read choice
+    choice=$((choice-1))
+    
+    if [ "$choice" -eq "${#logs[@]}" ]; then
         control_c
-    elif [[ -n "${logs[$choice]}" ]]; then
-        less +F "${logs[$choice]}"
+    elif [ "$choice" -ge 0 ] && [ "$choice" -lt "${#logs[@]}" ]; then
+        logname=$(echo "${!logs[@]}" | tr ' ' '\n' | sed -n "${choice}p")
+        updates[$logname]=0  # Reset update flag
+        less +F "${logs[$logname]}"
     else
         echo "Invalid option. Try another one."
     fi
