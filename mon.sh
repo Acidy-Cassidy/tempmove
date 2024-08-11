@@ -17,14 +17,15 @@ temp_updates="/tmp/zeek_log_updates.txt"
 
 # Initialize last sizes
 declare -A last_sizes
+> "$temp_updates"  # Clear or create the temp file
 for log in "${!logs[@]}"; do
     if [ -f "${logs[$log]}" ]; then
         last_sizes[$log]=$(stat -c %s "${logs[$log]}")
+        echo "$log 0" >> "$temp_updates"  # Initialize with no updates
     fi
-    echo "$log 0" >> "$temp_updates"  # Initialize update flags in temp file
 done
 
-# Function to check for file size changes and update flags in temp file
+# Function to check for file size changes and update temp file
 update_counters() {
     while true; do
         for log in "${!logs[@]}"; do
@@ -32,7 +33,8 @@ update_counters() {
                 current_size=$(stat -c %s "${logs[$log]}")
                 if [ $current_size -gt ${last_sizes[$log]} ]; then
                     last_sizes[$log]=$current_size
-                    echo "$log 1" >> "$temp_updates"  # Set update flag in temp file
+                    # Update the temporary file to reflect the change
+                    echo "$log 1" >> "$temp_updates"
                 fi
             fi
         done
@@ -57,9 +59,9 @@ while true; do
     echo "Select a log file to view or exit:"
     i=1
     options=()  # To store log names for indexing
+    declare -A updates  # Local array to read updates into
 
-    # Read updates from temp file
-    declare -A updates
+    # Read updates from the temp file
     while read -r line; do
         log=$(echo "$line" | cut -d' ' -f1)
         updated=$(echo "$line" | cut -d' ' -f2)
@@ -85,7 +87,8 @@ while true; do
         control_c
     elif [ "$choice" -ge 0 ] && [ "$choice" -lt "${#logs[@]}" ]; then
         selected_log=${options[$choice]}
-        echo "$selected_log 0" >> "$temp_updates"  # Reset update flag
+        # Reset update flag in the temp file
+        echo "$selected_log 0" >> "$temp_updates"
         less +F "${logs[$selected_log]}"
     else
         echo "Invalid option. Try another one."
