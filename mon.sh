@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Define log files and their counters
+# Define log files
 declare -A logs
 logs[dns]="/usr/local/zeek/logs/current/dns.log"
 logs[notice]="/usr/local/zeek/logs/current/notice.log"
@@ -11,15 +11,17 @@ logs[packet_filter]="/usr/local/zeek/logs/current/packet_filter.log"
 logs[stats]="/usr/local/zeek/logs/current/stats.log"
 logs[telemetry]="/usr/local/zeek/logs/current/telemetry.log"
 logs[weird]="/usr/local/zeek/logs/current/weird.log"
+
+# Initialize last sizes and update flags
 declare -A last_sizes
 declare -A updates
-
-# Initialize sizes and updates flags
 for log in "${!logs[@]}"; do
-    last_sizes[$log]=0
-    updates[$log]=0
     if [ -f "${logs[$log]}" ]; then
         last_sizes[$log]=$(stat -c %s "${logs[$log]}")
+        updates[$log]=0
+    else
+        last_sizes[$log]=0
+        updates[$log]=0
     fi
 done
 
@@ -30,12 +32,12 @@ update_counters() {
             if [ -f "${logs[$log]}" ]; then
                 current_size=$(stat -c %s "${logs[$log]}")
                 if [ $current_size -gt ${last_sizes[$log]} ]; then
-                    updates[$log]=1  # Set flag that there's an update
+                    updates[$log]=1
                     last_sizes[$log]=$current_size
                 fi
             fi
         done
-        sleep 1  # check every second
+        sleep 1  # Check every second
     done
 }
 
@@ -45,7 +47,7 @@ update_counters &
 # User interaction to view logs
 control_c() {
     echo -e "\nExiting and cleaning up..."
-    kill $(jobs -p) # Kill all background jobs
+    kill $(jobs -p)  # Kill all background jobs
     exit
 }
 
@@ -54,7 +56,9 @@ trap control_c INT
 while true; do
     echo "Select a log file to view or exit:"
     i=1
+    options=()  # To store log names for indexing
     for log in "${!logs[@]}"; do
+        options+=("$log")
         if [ ${updates[$log]} -eq 1 ]; then
             echo "[$i] $log *"
         else
@@ -62,17 +66,18 @@ while true; do
         fi
         ((i++))
     done
+    options+=("exit")  # Add exit option at the end
     echo "[$i] exit"
 
     read choice
-    choice=$((choice-1))
-    
+    choice=$((choice - 1))
+
     if [ "$choice" -eq "${#logs[@]}" ]; then
         control_c
     elif [ "$choice" -ge 0 ] && [ "$choice" -lt "${#logs[@]}" ]; then
-        logname=$(echo "${!logs[@]}" | tr ' ' '\n' | sed -n "${choice}p")
-        updates[$logname]=0  # Reset update flag
-        less +F "${logs[$logname]}"
+        selected_log=${options[$choice]}
+        updates[$selected_log]=0  # Reset update flag
+        less +F "${logs[$selected_log]}"
     else
         echo "Invalid option. Try another one."
     fi
